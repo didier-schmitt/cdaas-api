@@ -1,0 +1,20 @@
+#!/bin/bash
+
+CDAAS_API_HOME=$(readlink -f $(dirname $(readlink -f ${0}))/..)
+
+source ${CDAAS_API_HOME}/bin/env
+
+mode=$1
+
+case "${mode}" in
+    debug)
+        export CDAAS_API_CONFIG="config.config.DevelopmentConfig"
+        shift;;
+    local)
+        export CDAAS_API_CONFIG="config.config.LocalConfig"
+        shift;;
+    *)
+        export CDAAS_API_CONFIG="config.config.ProductionConfig";;
+esac
+
+${CDAAS_API_HOME}/modules/main.py "$@"

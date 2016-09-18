@@ -1,0 +1,9 @@
+#!/bin/bash
+
+CDAAS_API_HOME=$(readlink -f $(dirname $(readlink -f ${0}))/..)
+
+PYTHONPATH=${CDAAS_API_HOME}/lib/lib/python2.6/site-packages
+PYTHONPATH=${PYTHONPATH}:${CDAAS_API_HOME}/lib/lib64/python2.6/site-packages
+PYTHONPATH=${PYTHONPATH}:${CDAAS_API_HOME}/modules
+export PYTHONPATH
+

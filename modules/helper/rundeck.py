@@ -65,6 +65,22 @@ class RundeckHelper:
         else:
             abort(500)
     
+    def executions(self):
+        """
+        List all execution for a job
+        """
+        endpoint = 'api/14/job/%s/executions' % self.job
+        query = { 'format': 'json' }
+        response = self._rdeck_call('GET', endpoint, query)
+
+        if response.status_code == 404:
+            abort(404)
+        elif response.status_code == 200:
+            j = response.json()
+            return marshal([self.response_to_model(execution) for execution in j['executions']], helper.status.status_model)
+        else:
+            abort(500)
+
     def response_to_model(self, response_data):
         """
         wraps a rundeck job execution response into an api standard status response_data

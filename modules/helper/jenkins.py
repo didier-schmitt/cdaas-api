@@ -10,8 +10,9 @@ from flask_security import current_user
 queue_id_prefix = '-'
 queue_id_expiration = timedelta(minutes=3)
 
-build_tree = 'id,timestamp,building,result'
-queue_tree = 'id,inQueueSince,cancelled,executable[%s]' % build_tree
+build_tree      = 'id,timestamp,building,result'
+queue_tree     = 'id,inQueueSince,cancelled,executable[%s]' % build_tree
+build_list_tree = 'builds[%s]' % build_tree
 
 class JenkinsHelper:
     """
@@ -98,6 +99,27 @@ class JenkinsHelper:
                 return marshal(self.build_to_model(response.json()), helper.status.status_model)
             else:
                 abort(500)
+
+    def builds(self):
+        """
+        List all builds for a job
+        """
+        headers = {
+            'Accept': 'application/json',
+            'Authorization': 'Basic %s' % self.token
+        }
+        params = {
+            'tree': build_list_tree
+        }
+        endpoint = '%s/job/%s/api/json' % (self.jenkins_url, self.job)
+        response = requests.get(endpoint, params=params, headers=headers, verify=self.ca_bundle)
+        if response.status_code == 404:
+            abort(404)
+        elif response.status_code == 200:
+            j = response.json()
+            return marshal([self.build_to_model(b) for b in j['builds']], helper.status.status_model)
+        else:
+            abort(500)
 
     def parse_status(self, status_id):
         """

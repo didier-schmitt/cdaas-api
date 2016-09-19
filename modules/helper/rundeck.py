@@ -65,6 +65,20 @@ class RundeckHelper:
         else:
             abort(500)
     
+    def output(self, exec_id):
+        """
+        Retrieves the output for a job execution
+        """
+        # Check that the Execution ID matches the appropriate Job
+        self.status(exec_id)
+        
+        endpoint = "api/14/execution/%s/output.text" % exec_id
+        response = self._rdeck_call('GET', endpoint)
+        if response.status_code == 200:
+            return response.text.splitlines()
+        else:
+            abort(500)
+
     def executions(self):
         """
         List all execution for a job

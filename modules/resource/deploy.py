@@ -25,3 +25,7 @@ class DeployStatus(Resource):
 class DeployListStatus(Resource):
     def get(self):
         return JenkinsHelper(job_deploy).builds()
+
+class DeployOutput(Resource):
+    def get(self, status_id):
+        return JenkinsHelper(job_deploy).output(status_id)

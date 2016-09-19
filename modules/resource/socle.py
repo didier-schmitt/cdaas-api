@@ -21,3 +21,7 @@ class SocleStatus(Resource):
 class SocleListStatus(Resource):
     def get(self):
         return RundeckHelper(job_socle).executions()
+
+class SocleOutput(Resource):
+    def get(self, status_id):
+        return RundeckHelper(job_socle).output(status_id)

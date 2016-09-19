@@ -100,6 +100,23 @@ class JenkinsHelper:
             else:
                 abort(500)
 
+    def output(self, status_id):
+        """
+        Retrieves the Console Output for a job build
+        """
+        headers = {
+            'Accept': 'text/plain',
+            'Authorization': 'Basic %s' % self.token
+        }
+        endpoint = '%s/job/%s/%s/consoleText' % (self.jenkins_url, self.job, status_id)
+        response = requests.get(endpoint, headers=headers, verify=self.ca_bundle)
+        if response.status_code == 404:
+            abort(404)
+        elif response.status_code == 200:
+            return response.text.splitlines()
+        else:
+            abort(500)
+
     def builds(self):
         """
         List all builds for a job

@@ -1,17 +1,18 @@
 #!/usr/bin/env python
 
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from app import app
 from flask_restful import abort, marshal
 import helper.status
 from flask_security import current_user
 
 queue_id_prefix = '-'
-queue_id_expiration = timedelta(minutes=3)
+queue_id_expiration = 180
 
-build_tree      = 'id,timestamp,building,result'
-queue_tree     = 'id,inQueueSince,cancelled,executable[%s]' % build_tree
+action_tree     = 'actions[parameters[name,value],causes[userId]]'
+build_tree      = 'id,timestamp,building,result,%s' % action_tree
+queue_tree      = 'id,inQueueSince,cancelled,executable[%s],%s' % (build_tree, action_tree)
 build_list_tree = 'builds[%s]' % build_tree
 
 class JenkinsHelper:
@@ -163,10 +164,11 @@ class JenkinsHelper:
         model = {
             'id':         response_data['id'],
             'status':     status,
-            'started-at': datetime.fromtimestamp(response_data['timestamp']/1000),
-            'started-by': None,
-            'parameters': None
-        } 
+            'started-at': datetime.fromtimestamp(response_data['timestamp']/1000)
+        }
+        if 'actions' in response_data:
+            model.update(self.actions_to_model(response_data['actions']))
+
         return model
 
     def queue_to_model(self, response_data):
@@ -184,8 +186,33 @@ class JenkinsHelper:
         status_id = '%s%s' % (queue_id_prefix, response_data['id'])
         model = {
             'id':         status_id,
-            'id-expires': queue_id_expiration.total_seconds(),
+            'id-expires': queue_id_expiration,
             'status':     status,
             'started-at': datetime.fromtimestamp(response_data['inQueueSince']/1000)
         }
+        if 'actions' in response_data:
+            model.update(self.actions_to_model(response_data['actions']))
+
+        return model
+
+    def actions_to_model(self, actions):
+        """
+        wraps the actions returned by Jenkins into api standard data
+        """
+        model = {}
+        if actions is None:
+            return model
+        
+        for action in actions:
+            if type(action) is dict:
+                if 'parameters' in action:
+                    p = {}
+                    for parameter in action['parameters']:
+                        p[parameter['name']] = parameter['value']
+                    model['parameters'] = p
+                if 'causes' in action:
+                    for cause in action['causes']:
+                        if 'userId' in cause:
+                            model['started-by'] = cause['userId']
+                            break
         return model

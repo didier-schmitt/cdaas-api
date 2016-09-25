@@ -5,15 +5,16 @@ class Config(object):
     SECRET_KEY     = 'forgetme'
     CA_BUNDLE      = '/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem'
     LISTEN_ADDRESS = '0.0.0.0'
+    ERROR_404_HELP = False
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    SERVER_NAME = 'dev-cdaas.sws.group.gca:5010'
+    SERVER_NAME    = 'dev-cdaas.sws.group.gca:5010'
     LOGGING_CONFIG = '../conf/logging.cfg'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///../data/db.sqlite'
     SQLALCHEMY_TRACK_MODIFICATIONS = True
-    JENKINS_URL = 'https://dev-cdaas.sws.group.gca/jenkins'
-    RUNDECK_URL = 'https://dev-cdaas.sws.group.gca/rundeck'
+    JENKINS_URL    = 'https://dev-cdaas.sws.group.gca/jenkins'
+    RUNDECK_URL    = 'https://dev-cdaas.sws.group.gca/rundeck'
 
 class ProductionConfig(Config):
     DEBUG = False

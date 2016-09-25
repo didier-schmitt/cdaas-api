@@ -1,22 +1,25 @@
 #!/usr/bin/env python
 
-from requests import request
+from http_client import http_request, raise_http_error
 from datetime import datetime
-from app import app
+from flask import current_app
 from flask_restful import abort, marshal
 from flask_security import current_user
 import helper.status
+from werkzeug.exceptions import NotFound
 
 class RundeckHelper:
     """
     Helpers functions for running jobs and retrieving jobs activities
     """
-    rdeck_url = app.config['RUNDECK_URL']
-    ca_bundle = app.config['CA_BUNDLE']
+    rdeck_url = None
+    ca_bundle = None
     token = None
     job = None
 
     def __init__(self, job):
+        self.rdeck_url = current_app.config['RUNDECK_URL']
+        self.ca_bundle = current_app.config['CA_BUNDLE']
         self.job = job
         self.token = current_user.rundeck_key
 
@@ -26,7 +29,7 @@ class RundeckHelper:
             'X-Rundeck-Auth-Token': self.token
         }
         endpoint = "%s/%s" % (self.rdeck_url, path)
-        return request(method, endpoint, params=params, headers=headers, verify=self.ca_bundle)
+        return http_request(method, endpoint, params=params, headers=headers, verify=self.ca_bundle)
 
     def run(self, params=None):
         """
@@ -37,47 +40,40 @@ class RundeckHelper:
         if params is not None:
             query['argString'] = ' '.join(['-' + str(k) + ' ' + str(v) for k, v in params.items()])
         response = self._rdeck_call("POST", endpoint, query)
+        return marshal(self.response_to_model(response.json()), helper.status.status_model)
 
-        if response.status_code == 404:
-            abort(404)
-        elif response.status_code == 200:
-            return marshal(self.response_to_model(response.json()), helper.status.status_model)
-        else:
-            abort(500)
 
     def status(self, exec_id):
         """
         Retrieves the status for a job execution
         """
-        query = {
-            'format': 'json'
-        }
-        endpoint = "api/14/execution/%s" % exec_id
-        response = self._rdeck_call("GET", endpoint, query)
-        if response.status_code == 404:
-            abort(404)
-        elif response.status_code == 200:
+        try:
+            query = {
+                'format': 'json'
+            }
+            endpoint = "api/14/execution/%s" % exec_id
+            response = self._rdeck_call("GET", endpoint, query)
             j = response.json()
             # Check that the Execution ID matches the appropriate Job
             if j['job']['id'] != self.job:
                 abort(404)
             return marshal(self.response_to_model(j), helper.status.status_model)
-        else:
-            abort(500)
+        except NotFound as e:
+            raise_http_error(404, 'The requested status id does not exist', e)
     
     def output(self, exec_id):
         """
         Retrieves the output for a job execution
         """
-        # Check that the Execution ID matches the appropriate Job
-        self.status(exec_id)
-        
-        endpoint = "api/14/execution/%s/output.text" % exec_id
-        response = self._rdeck_call('GET', endpoint)
-        if response.status_code == 200:
+        try:
+            # Check that the Execution ID matches the appropriate Job
+            self.status(exec_id)
+            
+            endpoint = "api/14/execution/%s/output.text" % exec_id
+            response = self._rdeck_call('GET', endpoint)
             return response.text.splitlines()
-        else:
-            abort(500)
+        except NotFound as e:
+            raise_http_error(404, 'The requested status id does not exist', e)
 
     def executions(self):
         """
@@ -86,14 +82,8 @@ class RundeckHelper:
         endpoint = 'api/14/job/%s/executions' % self.job
         query = { 'format': 'json' }
         response = self._rdeck_call('GET', endpoint, query)
-
-        if response.status_code == 404:
-            abort(404)
-        elif response.status_code == 200:
-            j = response.json()
-            return marshal([self.response_to_model(execution) for execution in j['executions']], helper.status.status_model)
-        else:
-            abort(500)
+        j = response.json()
+        return marshal([self.response_to_model(execution) for execution in j['executions']], helper.status.status_model)
 
     def response_to_model(self, response_data):
         """

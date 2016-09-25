@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-import requests
+from requests import request
+from urlparse import urlparse
 from datetime import datetime
 from app import app
 from flask_restful import abort, marshal
@@ -28,21 +29,32 @@ class JenkinsHelper:
         self.job = job
         self.token = current_user.jenkins_key
 
-    def build(self, data=None):
-        """
-        Build a job
-        """
+    def _jenkins_call(self, method, path, params=None, headers=None, data=None):
         headers = {
             'Accept': 'application/json',
             'Authorization': 'Basic %s' % self.token
         }
-        if data is None:
-            endpoint = '%s/job/%s/build' % (self.jenkins_url, self.job)
-            response = requests.post(endpoint, headers=headers, verify=self.ca_bundle)
+
+        if urlparse(path).netloc == '':
+            endpoint = '%s/%s' % (self.jenkins_url, path)
         else:
+            endpoint = path
+
+        if data is not None:
             headers['Content-Type'] = 'application/x-www-form-urlencoded'
-            endpoint = '%s/job/%s/buildWithParameters' % (self.jenkins_url, self.job)
-            response = requests.post(endpoint, headers=headers, data=data, verify=self.ca_bundle)
+
+        return request(method, endpoint, params=params, headers=headers, data=data, verify=self.ca_bundle)
+
+    def build(self, data=None):
+        """
+        Build a job
+        """
+        if data is None:
+            path = 'job/%s/build' % self.job
+            response = self._jenkins_call('POST', path)
+        else:
+            path = 'job/%s/buildWithParameters' % self.job
+            response = self._jenkins_call('POST', path, data=data)
 
         if response.status_code == 201:
             # Job launched in Build Queue
@@ -50,7 +62,7 @@ class JenkinsHelper:
                 'tree': queue_tree
             }
             endpoint = '%sapi/json' % response.headers['Location']
-            response = requests.get(endpoint, params=params, headers=headers, verify=self.ca_bundle)
+            response = response = self._jenkins_call('GET', endpoint, params=params)
             if response.status_code == 200:
                 headers = {}
                 model = self.queue_to_model(response.json())
@@ -67,17 +79,13 @@ class JenkinsHelper:
         """
         Retrieves the status for a job build (either it is in the queue or running on a slave)
         """
-        headers = {
-            'Accept': 'application/json',
-            'Authorization': 'Basic %s' % self.token
-        }
         parsed_id, is_queued = self.parse_status(status_id)
         if is_queued:
             params = {
                 'tree': queue_tree
             }
-            endpoint = '%s/queue/item/%s/api/json' % (self.jenkins_url, parsed_id)
-            response = requests.get(endpoint, params=params, headers=headers, verify=self.ca_bundle)
+            endpoint = 'queue/item/%s/api/json' % parsed_id
+            response = self._jenkins_call('GET', endpoint, params=params)
             if response.status_code == 404:
                 abort(404)
             elif response.status_code == 200:
@@ -92,8 +100,8 @@ class JenkinsHelper:
             params = {
                 'tree': build_tree
             }
-            endpoint = '%s/job/%s/%s/api/json' % (self.jenkins_url, self.job, parsed_id)
-            response = requests.get(endpoint, params=params, headers=headers, verify=self.ca_bundle)
+            endpoint = 'job/%s/%s/api/json' % (self.job, parsed_id)
+            response = self._jenkins_call('GET', endpoint, params=params)
             if response.status_code == 404:
                 abort(404)
             elif response.status_code == 200:
@@ -105,12 +113,8 @@ class JenkinsHelper:
         """
         Retrieves the Console Output for a job build
         """
-        headers = {
-            'Accept': 'text/plain',
-            'Authorization': 'Basic %s' % self.token
-        }
-        endpoint = '%s/job/%s/%s/consoleText' % (self.jenkins_url, self.job, status_id)
-        response = requests.get(endpoint, headers=headers, verify=self.ca_bundle)
+        endpoint = 'job/%s/%s/consoleText' % (self.job, status_id)
+        response = self._jenkins_call('GET', endpoint)
         if response.status_code == 404:
             abort(404)
         elif response.status_code == 200:
@@ -122,15 +126,11 @@ class JenkinsHelper:
         """
         List all builds for a job
         """
-        headers = {
-            'Accept': 'application/json',
-            'Authorization': 'Basic %s' % self.token
-        }
         params = {
             'tree': build_list_tree
         }
-        endpoint = '%s/job/%s/api/json' % (self.jenkins_url, self.job)
-        response = requests.get(endpoint, params=params, headers=headers, verify=self.ca_bundle)
+        endpoint = 'job/%s/api/json' % self.job
+        response = self._jenkins_call('GET', endpoint, params=params)
         if response.status_code == 404:
             abort(404)
         elif response.status_code == 200:
